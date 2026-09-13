@@ -16,7 +16,7 @@ type Engine struct {
 
 // Snapshot introspects a SQLite database and returns its Schema.
 func (e *Engine) Snapshot(cfg s.Config) (*s.Schema, error) {
-	conn, err := sql.Open("sqlite3", cfg.DB)
+	conn, err := sql.Open("sqlite", cfg.DB)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (e *Engine) Snapshot(cfg s.Config) (*s.Schema, error) {
 
 // Restore applies the given Schema to a SQLite database.
 func (e *Engine) Restore(cfg s.Config, schema *s.Schema) error {
-	conn, err := sql.Open("sqlite3", cfg.DB)
+	conn, err := sql.Open("sqlite", cfg.DB)
 	if err != nil {
 		return err
 	}

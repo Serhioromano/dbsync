@@ -1,14 +1,48 @@
 {
   "name": "mysqlsync",
   "version": "1.0.1",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "init": "GOOS=windows GOARCH=amd64 go install",
-    "restore": "go install && mysqlsync restore -p=prod",
-    "snash": "go install && mysqlsync snash -p=dev",
-    "build": "env GOOS=windows GOARCH=amd64 go build -o ./build/mysqsync_1.0.0_windows_amd64.exe ."
+  "description": "MySQL / SQLite schema sync tool — snapshot your schema to DBML and restore it anywhere",
+  "license": "ISC",
+  "author": "Sergey Romanov <serg4172@mail.ru>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/serhioromano/mysqlsync.git"
   },
-  "author": "",
-  "license": "ISC"
+  "bin": {
+    "mysqlsync": "bin/mysqlsync"
+  },
+  "files": [
+    "bin/"
+  ],
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "engines": {
+    "node": ">=12"
+  },
+  "keywords": [
+    "mysql",
+    "sqlite",
+    "schema",
+    "migration",
+    "dbml",
+    "sync",
+    "cli"
+  ],
+  "scripts": {
+    "prepack": "make build",
+    "build": "make build",
+    "pack": "make pack",
+    "bump": "make bump",
+    "release": "make release",
+    "clean": "make clean",
+    "snash": "go run . snash -p=dev",
+    "restore": "go run . restore -p=prod"
+  }
 }

@@ -1,2 +1,12 @@
 snash
 mysqlsync
+
+# build & npm packaging artifacts
+# bin/ holds the tracked Node launcher (bin/mysqlsync) plus these cross-compiled
+# binaries, which must never be committed but ARE included in the npm tarball
+# (package.json "files": ["bin/"]).
+bin/mysqlsync-*
+dist/
+build/
+*.exe
+*.tgz
