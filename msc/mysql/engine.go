@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	s "github.com/serhioromano/mysqlsync/msc/schema"
+	s "github.com/serhioromano/dbsync/msc/schema"
 )
 
 // Engine implements s.Engine for MySQL.

@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/serhioromano/mysqlsync/msc/schema"
+	"github.com/serhioromano/dbsync/msc/schema"
 )
 
 // Write serializes a Schema to DBML format and writes it to w.

@@ -1,15 +1,18 @@
 {
-  "name": "mysqlsync",
-  "version": "3.0.0",
-  "description": "MySQL / SQLite schema sync tool — snapshot your schema to DBML and restore it anywhere",
+  "name": "@serhioromano/dbsync",
+  "version": "2.0.0",
+  "description": "DB schema sync tool — snapshot MySQL / SQLite schemas to DBML and restore them anywhere",
   "license": "ISC",
   "author": "Sergey Romanov <serg4172@mail.ru>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/serhioromano/mysqlsync.git"
+    "url": "https://github.com/serhioromano/dbsync.git"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "bin": {
-    "mysqlsync": "bin/mysqlsync"
+    "dbsync": "bin/dbsync"
   },
   "files": [
     "bin/"

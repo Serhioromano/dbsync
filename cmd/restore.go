@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/serhioromano/mysqlsync/msc/schema"
-	"github.com/serhioromano/mysqlsync/msc/dbml"
+	"github.com/serhioromano/dbsync/msc/schema"
+	"github.com/serhioromano/dbsync/msc/dbml"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

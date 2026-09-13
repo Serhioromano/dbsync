@@ -19,7 +19,7 @@ installed there.
 
 ## 1. What this project is
 
-`mysqlsync` (Go module `github.com/serhioromano/mysqlsync`) is a **schema
+`dbsync` (Go module `github.com/serhioromano/dbsync`) is a **schema
 synchronization** CLI and library for **MySQL** and **SQLite**.
 
 There are no migration files. The model is:
@@ -50,7 +50,7 @@ Derived from `Makefile` and `package.json`; see the verification note at the top
 
 ```bash
 # Build / run
-go build .                                  # produces ./mysqlsync
+go build .                                  # produces ./dbsync
 go run . snash   -p=dev                     # snapshot using profile "dev"
 go run . restore -p=prod                    # restore using profile "prod"
 go run . snash   --engine=sqlite --db=/path/to/db.sqlite
@@ -81,6 +81,14 @@ driver without also reworking the Makefile's "fully static" promise.
 The published npm package **is the repository root**: the root `package.json` is
 the manifest npm uploads. There is no staging directory and no separate
 publishing manifest.
+
+It is published as **`@serhioromano/dbsync`** with
+`"publishConfig": {"access": "public"}` — scoped packages default to restricted,
+so the public access flag is required. The unscoped name `mysqlsync` is rejected
+by npm's similarity check (HTTP 403: "too similar to existing package
+mysql-sync"), so do not rename it back. The `bin` entry stays keyed `dbsync`, so
+the installed command is `dbsync` even though the package is scoped
+(`npm i -g @serhioromano/dbsync`, then run `dbsync snash ...`).
 
 ```bash
 make version                  # print current version
@@ -116,7 +124,7 @@ runs that step alone, and `LOGIN_ARGS` passes extra flags through (for example
 GitHub release: `make gh-release` creates (or updates) the release for
 `RELEASE_TAG` — by default `v$(VERSION)`, matching both the tag `npm version`
 creates and the repo's existing v-prefixed tags (`v1.0.0`, `v2.0.0`) — and
-attaches every `bin/mysqlsync-<os>-<arch>` binary. It uses
+attaches every `bin/dbsync-<os>-<arch>` binary. It uses
 `gh release create --verify-tag`, so the tag must already be on the remote:
 `make release` pushes first (`PUSH=0` skips the push). Re-running is safe — if
 the release already exists, assets are replaced via `gh release upload
@@ -125,11 +133,11 @@ the release already exists, assets are replaced via `gh release upload
 otherwise exits with instructions (use `GH_TOKEN` in CI).
 
 How the tarball stays minimal: `package.json` sets
-`"bin": {"mysqlsync": "bin/mysqlsync"}` and `"files": ["bin/"]`, so only the Node
-launcher and the prebuilt `bin/mysqlsync-<os>-<arch>` binaries ship (plus the
+`"bin": {"dbsync": "bin/dbsync"}` and `"files": ["bin/"]`, so only the Node
+launcher and the prebuilt `bin/dbsync-<os>-<arch>` binaries ship (plus the
 always-included `package.json`/`README`/`LICENSE`) — never the Go sources.
 `prepack` runs `make build`, so `npm pack`/`npm publish` rebuild first, and
-`bin/mysqlsync-*` is gitignored yet still packed.
+`bin/dbsync-*` is gitignored yet still packed.
 
 Gotchas when editing this area:
 
@@ -165,8 +173,8 @@ Gotchas when editing this area:
 | `msc/msc.go` | Backward-compat shim. Type aliases to `schema.*`, plus `Snash()` / `Restore.Run()` hardwired to MySQL. |
 | `test/db.dbml` | dbdiagram.io-style sample schema (with `Records` blocks). Not referenced by any code. |
 | `test/sqlite_test.sqlite` | Binary SQLite fixture. Not referenced by any code. |
-| `.mysqlsync.json` | Committed example config: `files_path` + `profiles` (`dev`, `prod`). |
-| `bin/mysqlsync` | Tracked Node launcher (the npm `bin` entry) that picks the prebuilt `bin/mysqlsync-<os>-<arch>` binary for the host platform. |
+| `.dbsync.json` | Committed example config: `files_path` + `profiles` (`dev`, `prod`). |
+| `bin/dbsync` | Tracked Node launcher (the npm `bin` entry) that picks the prebuilt `bin/dbsync-<os>-<arch>` binary for the host platform. |
 | `Makefile` | Cross-platform build, npm packaging, version bumping, push and the GitHub release. |
 | `package.json` | The published npm manifest: version source of truth, `bin`/`files`/`os`/`cpu`, and script wrappers. Publishing runs from the repo root. |
 | `.vscode/extensions.json` | Recommends DBML syntax/visualization extensions. |
@@ -294,7 +302,7 @@ comparison strips one prefix from each side.
 
 ## 7. Configuration and flag precedence
 
-Config file discovery is **hardcoded** to `.mysqlsync.json` in `$HOME/.mysqlsync`
+Config file discovery is **hardcoded** to `.dbsync.json` in `$HOME/.dbsync`
 and `.` (via viper). The `--config` flag is registered but **never read** — it is
 a no-op.
 
@@ -382,8 +390,10 @@ Verified by reading; each is worth confirming with a real database before
    There is also an unreachable `dt == "int" && def == ""` branch.
 8. **Column order is not preserved** when adding columns to existing tables —
    MySQL `ADD COLUMN` has no `AFTER` clause, so new columns land at the end.
-9. **`go.mod` still has `replace github.com/serhioromano/mysqlsync/cmd => ../cmd`**,
-   pointing outside the module. Stale; should disappear after `make deps`.
+9. **Resolved — stale `replace` directive.** `go.mod` used to carry
+   `replace github.com/serhioromano/mysqlsync/cmd => ../cmd`, pointing outside
+   the module at a directory that does not exist. It was removed as part of the
+   `dbsync` rename; `go.mod` now holds only `module`, `go` and `require`.
 10. **Resolved — SQLite driver / `go.sum`.** An earlier state had `main.go`
     importing `modernc.org/sqlite` while `go.sum` still carried the old
     `mattn/go-sqlite3` and `go.mod` still required it. The current
@@ -412,7 +422,7 @@ Consequences for an agent:
 - Meaningful verification requires a **live database** (MySQL server, or a
   throwaway SQLite file) plus a DBML file, e.g.:
   ```bash
-  go build -o /tmp/mysqlsync .                       # compile check
+  go build -o /tmp/dbsync .                       # compile check
   go run . restore --engine=sqlite --db=/tmp/t.sqlite -f test/db.dbml
   ```
 - A useful cheap check after touching the DBML layer is a **round trip**:
@@ -444,7 +454,20 @@ Consequences for an agent:
   follows a git-flow-style model — `.vscode/settings.json` sets
   `"gitflow.variant": "auto"`.
 - `.gitignore` covers `snash/` (the default snapshot output directory, which is
-  also the `files_path` in `.mysqlsync.json`), the `mysqlsync` binary, the
-  cross-compiled `bin/mysqlsync-*` binaries, and packaging artifacts (`dist/`,
-  `build/`, `*.exe`, `*.tgz`). The `bin/mysqlsync` launcher must stay tracked.
+  also the `files_path` in `.dbsync.json`), the `dbsync` binary, the
+  cross-compiled `bin/dbsync-*` binaries, and packaging artifacts (`dist/`,
+  `build/`, `*.exe`, `*.tgz`). The `bin/dbsync` launcher must stay tracked.
+- The ignore line for the binary is **`/dbsync`, root-anchored on purpose**. A
+  bare `dbsync` pattern also matches `bin/dbsync` and silently untracks the Node
+  launcher — that really happened while the tool was named `mysqlsync`: the
+  launcher was never committed and a fresh clone would fail `make build`. Keep
+  the leading slash.
+- The Go module path is `github.com/serhioromano/dbsync`, so the **GitHub repo
+  must be renamed** from `mysqlsync` to `dbsync` for `go get` to resolve, then
+  the remote updated (`git remote set-url origin
+  https://github.com/serhioromano/dbsync.git`). GitHub redirects old URLs until
+  then, but the old module path cannot resolve because `go.mod` declares the new
+  one.
+- `bin/dbsync` is tracked **source** (the npm `bin` launcher), not a build
+  artifact; only `bin/dbsync-*` is ignored.
 - Do not commit generated snapshots or `dist/` output.

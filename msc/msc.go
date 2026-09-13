@@ -5,9 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/serhioromano/mysqlsync/msc/dbml"
-	"github.com/serhioromano/mysqlsync/msc/mysql"
-	"github.com/serhioromano/mysqlsync/msc/schema"
+	"github.com/serhioromano/dbsync/msc/dbml"
+	"github.com/serhioromano/dbsync/msc/mysql"
+	"github.com/serhioromano/dbsync/msc/schema"
 )
 
 // Config is an alias for backward compatibility.

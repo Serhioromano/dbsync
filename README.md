@@ -7,15 +7,15 @@ As we all know, migrations are a pain. There are so many points of failure, and 
 > 2. All foreign keys (constraints) **MUST** have `fk_` prefix in their name
 > 3. Primary auto-increment fields are preferably named `id` (not required)
 
-`mysqlsync` is a completely new approach to DB migrations. Instead of creating migration files which apply changes from stage to stage, you make a snapshot (`snash`) of a DB structure to a **DBML file** (Database Markup Language). Then you restore this file to another DB. It will compare the target DB against the DBML definition and automatically generate migration queries to alter columns, indexes, create or delete tables and constraints. It will try to do it the most non-destructive way.
+`dbsync` is a completely new approach to DB migrations. Instead of creating migration files which apply changes from stage to stage, you make a snapshot (`snash`) of a DB structure to a **DBML file** (Database Markup Language). Then you restore this file to another DB. It will compare the target DB against the DBML definition and automatically generate migration queries to alter columns, indexes, create or delete tables and constraints. It will try to do it the most non-destructive way.
 
 ### Multi-Database Support
 
-`mysqlsync` supports both **MySQL** and **SQLite** databases through a clean abstraction layer. Use the `--engine` flag to choose:
+`dbsync` supports both **MySQL** and **SQLite** databases through a clean abstraction layer. Use the `--engine` flag to choose:
 
 ```bash
-mysqlsync snash --engine=mysql --db=mydb ...
-mysqlsync snash --engine=sqlite --db=/path/to/database.sqlite ...
+dbsync snash --engine=mysql --db=mydb ...
+dbsync snash --engine=sqlite --db=/path/to/database.sqlite ...
 ```
 
 ### Why DBML?
@@ -68,8 +68,20 @@ You can use it as a CLI tool or programmatically.
 
 ## Install
 
+### npm (prebuilt binaries, no Go needed)
+
+```bash
+npm install -g @serhioromano/dbsync
 ```
-go get -u github.com/serhioromano/mysqlsync
+
+Installs the `dbsync` command with prebuilt binaries for macOS (x64/arm64),
+Linux (x64/arm64) and Windows (x64). The package is scoped, but the command it
+installs is plain `dbsync`.
+
+### Go
+
+```
+go get -u github.com/serhioromano/dbsync
 ```
 
 ## Use CLI
@@ -78,27 +90,27 @@ go get -u github.com/serhioromano/mysqlsync
 
 ```bash
 # MySQL
-mysqlsync snash --engine=mysql --user=root --pass=root --host=localhost --port=3306 --db=mydb
+dbsync snash --engine=mysql --user=root --pass=root --host=localhost --port=3306 --db=mydb
 
 # SQLite
-mysqlsync snash --engine=sqlite --db=/path/to/database.sqlite
+dbsync snash --engine=sqlite --db=/path/to/database.sqlite
 ```
 
 ### Restoring a Snapshot
 
 ```bash
 # MySQL
-mysqlsync restore --engine=mysql --user=root --pass=root --host=localhost --port=3306 --db=mydb
+dbsync restore --engine=mysql --user=root --pass=root --host=localhost --port=3306 --db=mydb
 
 # SQLite
-mysqlsync restore --engine=sqlite --db=/path/to/database.sqlite
+dbsync restore --engine=sqlite --db=/path/to/database.sqlite
 ```
 
-You can see documentation for all options using `mysqlsync snash --help` or `mysqlsync restore --help`.
+You can see documentation for all options using `dbsync snash --help` or `dbsync restore --help`.
 
 ### Profile File
 
-If you do not want to pass all parameters because there are a lot of them, you can create a profile file `.mysqlsync.json`. Here is an example:
+If you do not want to pass all parameters because there are a lot of them, you can create a profile file `.dbsync.json`. Here is an example:
 
 ```json
 {
@@ -140,9 +152,9 @@ If you do not want to pass all parameters because there are a lot of them, you c
 Now you can call the CLI tool with only one parameter `-p` or `--profile`:
 
 ```
-mysqlsync snash -p=dev
-mysqlsync restore -p=prod
-mysqlsync snash -p=sqlite_dev
+dbsync snash -p=dev
+dbsync restore -p=prod
+dbsync snash -p=sqlite_dev
 ```
 
 The first command creates `./snash/icod_project.dbml` with the `icod_project` DB model snapshot, and the second command restores it to the `p_8` DB with the new prefix.
@@ -154,7 +166,7 @@ The first command creates `./snash/icod_project.dbml` with the `icod_project` DB
 | JSON Param | Flag | Description |
 |---|---|---|
 | — | `-h`, `--help` | Help for command |
-| — | `--config` | Config file to load (default: `$PWD/.mysqlsync.json`) |
+| — | `--config` | Config file to load (default: `$PWD/.dbsync.json`) |
 | — | `-p`, `--profile` | Name of connection profile in configuration file |
 | — | `--engine` | Database engine: `mysql` or `sqlite` (default: `mysql`) |
 | `files_path` | `--path` | Path where snapshot files are stored |
@@ -279,9 +291,9 @@ import (
     "fmt"
     "os"
 
-    "github.com/serhioromano/mysqlsync/msc/schema"
-    "github.com/serhioromano/mysqlsync/msc/dbml"
-    "github.com/serhioromano/mysqlsync/msc/mysql"
+    "github.com/serhioromano/dbsync/msc/schema"
+    "github.com/serhioromano/dbsync/msc/dbml"
+    "github.com/serhioromano/dbsync/msc/mysql"
 )
 
 func main() {
@@ -343,7 +355,7 @@ func main() {
 ### Using SQLite Engine
 
 ```go
-import "github.com/serhioromano/mysqlsync/msc/sqlite"
+import "github.com/serhioromano/dbsync/msc/sqlite"
 
 engine := &sqlite.Engine{}
 cfg := schema.Config{
@@ -360,7 +372,7 @@ sch, err := engine.Snapshot(cfg)
 The original `msc.Snash()` and `msc.Restore{}.Run()` API is still available for MySQL:
 
 ```go
-import "github.com/serhioromano/mysqlsync/msc"
+import "github.com/serhioromano/dbsync/msc"
 
 options := msc.Config{
     User: "root", Pass: "root", Host: "localhost",

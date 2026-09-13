@@ -1,0 +1,36 @@
+#!/usr/bin/env node
+'use strict';
+
+const { spawnSync } = require('child_process');
+const path = require('path');
+
+// Map "<node platform>-<node arch>" to the prebuilt binary shipped next to this
+// launcher. Keep this list in sync with the PLATFORMS variable in the Makefile.
+const BINARIES = {
+  'darwin-x64': 'dbsync-darwin-amd64',
+  'darwin-arm64': 'dbsync-darwin-arm64',
+  'linux-x64': 'dbsync-linux-amd64',
+  'linux-arm64': 'dbsync-linux-arm64',
+  'win32-x64': 'dbsync-windows-amd64.exe',
+};
+
+const key = `${process.platform}-${process.arch}`;
+const binary = BINARIES[key];
+
+if (!binary) {
+  console.error(`dbsync: no prebuilt binary available for ${key}`);
+  console.error('Supported platforms: ' + Object.keys(BINARIES).join(', '));
+  console.error('See https://github.com/serhioromano/dbsync for other options.');
+  process.exit(1);
+}
+
+const result = spawnSync(path.join(__dirname, binary), process.argv.slice(2), {
+  stdio: 'inherit',
+});
+
+if (result.error) {
+  console.error(`dbsync: failed to start ${binary}: ${result.error.message}`);
+  process.exit(1);
+}
+
+process.exit(typeof result.status === 'number' ? result.status : 1);

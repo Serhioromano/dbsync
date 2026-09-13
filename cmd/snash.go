@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/serhioromano/mysqlsync/msc/schema"
-	"github.com/serhioromano/mysqlsync/msc/dbml"
-	"github.com/serhioromano/mysqlsync/msc/mysql"
-	"github.com/serhioromano/mysqlsync/msc/sqlite"
+	"github.com/serhioromano/dbsync/msc/schema"
+	"github.com/serhioromano/dbsync/msc/dbml"
+	"github.com/serhioromano/dbsync/msc/mysql"
+	"github.com/serhioromano/dbsync/msc/sqlite"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

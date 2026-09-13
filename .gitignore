@@ -1,11 +1,13 @@
 snash
-mysqlsync
+# /dbsync (root-anchored!) ignores only the compiled ./dbsync binary.
+# A bare "dbsync" would also match bin/dbsync and silently untrack the launcher.
+/dbsync
 
 # build & npm packaging artifacts
-# bin/ holds the tracked Node launcher (bin/mysqlsync) plus these cross-compiled
+# bin/ holds the tracked Node launcher (bin/dbsync) plus these cross-compiled
 # binaries, which must never be committed but ARE included in the npm tarball
 # (package.json "files": ["bin/"]).
-bin/mysqlsync-*
+bin/dbsync-*
 dist/
 build/
 *.exe

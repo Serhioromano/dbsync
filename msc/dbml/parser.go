@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	s "github.com/serhioromano/mysqlsync/msc/schema"
+	s "github.com/serhioromano/dbsync/msc/schema"
 )
 
 // Parse parses a DBML document string and returns a Schema.

@@ -1,4 +1,4 @@
-module github.com/serhioromano/mysqlsync
+module github.com/serhioromano/dbsync
 
 go 1.16
 
@@ -8,5 +8,3 @@ require (
 	github.com/spf13/viper v1.7.1
 	modernc.org/sqlite v1.17.0
 )
-
-replace github.com/serhioromano/mysqlsync/cmd => ../cmd

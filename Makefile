@@ -1,5 +1,5 @@
 # =============================================================================
-#  mysqlsync — cross-platform build + npm packaging
+#  dbsync — cross-platform build + npm packaging
 # =============================================================================
 #
 #  Targets
@@ -19,7 +19,7 @@
 #
 #  Packaging
 #    The published package IS this repository root. package.json declares
-#    "bin": { "mysqlsync": "bin/mysqlsync" } and "files": ["bin/"], so the
+#    "bin": { "dbsync": "bin/dbsync" } and "files": ["bin/"], so the
 #    tarball carries only the launcher plus the prebuilt platform binaries;
 #    its `prepack` script runs `make build` before npm packs or publishes.
 #    `make publish` first checks npm auth and, when it has a terminal, starts
@@ -40,7 +40,7 @@
 #      4. publish                  npm publish (prepack rebuilds bin/)
 #      5. push                     git push + push the tag (PUSH=0 to skip)
 #      6. gh-release               gh release create --verify-tag + binaries
-#    The GitHub release attaches every bin/mysqlsync-<os>-<arch>. RELEASE_TAG
+#    The GitHub release attaches every bin/dbsync-<os>-<arch>. RELEASE_TAG
 #    defaults to v$(VERSION), matching the tag npm creates and the repo's
 #    convention (existing tags are v-prefixed, e.g. v1.0.0). NOTES="..." sets
 #    the body; otherwise gh generates the notes.
@@ -53,7 +53,7 @@
 #      after the SQLite driver switch) if you want a clean go.mod/go.sum.
 # =============================================================================
 
-NAME      := mysqlsync
+NAME      := dbsync
 
 # Single source of truth for the version is package.json (npm publishes this
 # very manifest, so nothing needs to inject a version anywhere).
@@ -90,7 +90,7 @@ NOTES_ARGS = $(if $(NOTES),--notes "$(NOTES)",--generate-notes)
 LOGIN_ARGS ?=
 
 # Directory that gets packed into the npm tarball: the tracked Node launcher
-# (bin/mysqlsync) plus the cross-compiled platform binaries. The path must match
+# (bin/dbsync) plus the cross-compiled platform binaries. The path must match
 # the "bin" and "files" entries in package.json.
 BIN_DIR   := bin
 
@@ -98,7 +98,7 @@ GO        ?= go
 GOFLAGS   ?= -trimpath -mod=mod
 LDFLAGS   ?= -s -w
 
-# <os>/<arch> pairs to build. Extend freely, then update bin/mysqlsync.
+# <os>/<arch> pairs to build. Extend freely, then update bin/dbsync.
 PLATFORMS := \
 	darwin/amd64 \
 	darwin/arm64 \
@@ -221,7 +221,7 @@ ensure-gh:
 	fi
 
 # `pack` and `publish` run from the repository root: package.json points "bin"
-# at bin/mysqlsync and restricts "files" to bin/, and its `prepack` script runs
+# at bin/dbsync and restricts "files" to bin/, and its `prepack` script runs
 # `make build` first, so the shipped binaries are always freshly built.
 pack: ## Create an npm tarball (npm runs `prepack` -> make build first)
 	npm pack
@@ -257,7 +257,7 @@ gh-release: ensure-gh ## Create the GitHub release and attach all bin/ binaries
 			--title "$(RELEASE_TAG)" --verify-tag $(NOTES_ARGS); \
 	fi
 
-clean: ## Remove build artifacts (keeps the bin/mysqlsync launcher)
+clean: ## Remove build artifacts (keeps the bin/dbsync launcher)
 	@rm -f "$(BIN_DIR)"/$(NAME)-*
 	@rm -rf dist
 

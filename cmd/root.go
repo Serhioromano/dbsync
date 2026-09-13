@@ -15,7 +15,7 @@ var cnfLoaded bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "mysqlsync",
+	Use:   "dbsync",
 	Short: "Synchronize MySQL DB Model from one DB to another",
 	Long: `Tool to migrate DB from development to production without a pain.	
 It works though generating DB model snapshot DBML files (Database Markup Language).
@@ -34,7 +34,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $PWD/.mysqlsync.json)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $PWD/.dbsync.json)")
 	rootCmd.PersistentFlags().StringP("profile", "p", "", "Name of connection profile in configuration file. By adding profile you do not need to add any other flag.")
 	rootCmd.PersistentFlags().String("db", "", "DB scheme name")
 	rootCmd.PersistentFlags().String("user", "", "DB user name")
@@ -49,9 +49,9 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	viper.SetConfigName(".mysqlsync.json")
+	viper.SetConfigName(".dbsync.json")
 	viper.SetConfigType("json")
-	viper.AddConfigPath("$HOME/.mysqlsync")
+	viper.AddConfigPath("$HOME/.dbsync")
 	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
 	viper.BindPFlag("profile", rootCmd.Flags().Lookup("profile"))
