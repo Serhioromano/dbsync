@@ -1,6 +1,6 @@
 {
   "name": "@serhioromano/dbsync",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "DB schema sync tool — snapshot MySQL / SQLite schemas to DBML and restore them anywhere",
   "license": "ISC",
   "author": "Sergey Romanov <serg4172@mail.ru>",
