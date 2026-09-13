@@ -1,6 +1,6 @@
 {
   "name": "mysqlsync",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "MySQL / SQLite schema sync tool — snapshot your schema to DBML and restore it anywhere",
   "license": "ISC",
   "author": "Sergey Romanov <serg4172@mail.ru>",
