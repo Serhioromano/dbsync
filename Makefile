@@ -85,14 +85,19 @@ MSG       ?= chore: pre-release work
 # recipe lines and start returning one version too high.
 NEXT_VERSION := $(shell command -v node >/dev/null 2>&1 && node -e "const p=require('./package.json').version.split('.').map(Number);const t='$(BUMP)';console.log(t=='major'?(p[0]+1)+'.0.0':t=='minor'?p[0]+'.'+(p[1]+1)+'.0':t=='patch'?p[0]+'.'+p[1]+'.'+(p[2]+1):'')" 2>/dev/null; true)
 
-# GitHub release (gh CLI). git-flow creates the version tag, so read its
-# configured prefix to guarantee RELEASE_TAG matches the tag that
-# `git flow release finish` actually produced (this repo sets the prefix to `v`).
+# GitHub release (gh CLI). git-flow creates the version tag, but the tag name it
+# actually uses can disagree with the prefix config we can read (in this repo
+# `git flow release finish` produced a bare `2.0.1` while
+# gitflow.prefix.versiontag said `v`), so never guess: probe for the real tag.
+# Order: <prefix><version>, then bare <version>, then the prefixed name as the
+# intended value for messages before any tag exists.
 GITFLOW_TAG_PREFIX ?= $(shell git config --get gitflow.prefix.versiontag 2>/dev/null)
-RELEASE_TAG ?= $(GITFLOW_TAG_PREFIX)$(VERSION)
+GITFLOW_MASTER     ?= $(shell git config --get gitflow.branch.master  2>/dev/null || echo master)
+GITFLOW_DEVELOP    ?= $(shell git config --get gitflow.branch.develop 2>/dev/null || echo develop)
+RELEASE_TAG ?= $(shell p="$(GITFLOW_TAG_PREFIX)"; v="$(VERSION)"; if git rev-parse -q --verify "refs/tags/$$p$$v" >/dev/null 2>&1; then echo "$$p$$v"; elif git rev-parse -q --verify "refs/tags/$$v" >/dev/null 2>&1; then echo "$$v"; else echo "$$p$$v"; fi)
 # 1 = push the release commit + tag before creating the GitHub release.
 PUSH      ?= 1
-# Extra arguments for `git push` (e.g. PUSH_ARGS='origin develop').
+# Extra flags for `git push` (e.g. PUSH_ARGS=--dry-run).
 PUSH_ARGS ?=
 # Release notes body; empty lets gh generate them from commits and merged PRs.
 NOTES     ?=
@@ -184,8 +189,8 @@ release: ensure-auth ensure-gh ensure-gitflow ## git-flow release: BUMP=patch|mi
 	@git commit -m "release $(NEXT_VERSION)"
 	@GIT_MERGE_AUTOEDIT=no git flow release finish -m "release $(NEXT_VERSION)" "$(NEXT_VERSION)"
 	@if [ "$(PUSH)" = "1" ]; then \
-		echo ">> git: pushing master, develop and $(GITFLOW_TAG_PREFIX)$(NEXT_VERSION)"; \
-		git push origin master develop "$(GITFLOW_TAG_PREFIX)$(NEXT_VERSION)"; \
+		echo ">> git: pushing $(GITFLOW_MASTER), $(GITFLOW_DEVELOP) and $(RELEASE_TAG)"; \
+		git push $(PUSH_ARGS) origin $(GITFLOW_MASTER) $(GITFLOW_DEVELOP) "$(RELEASE_TAG)"; \
 	fi
 	@$(MAKE) publish
 	@$(MAKE) gh-release
@@ -274,15 +279,14 @@ pack: ## Create an npm tarball (npm runs `prepack` -> make build first)
 publish: ensure-auth ## Publish to the npm registry (npm runs `prepack` -> make build first)
 	npm publish
 
-push: ## Push the release commit and the version tag to origin
+push: ## Push master, develop and the release tag to origin
 	@git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: not a git working tree" >&2; exit 1; }
 	@git rev-parse -q --verify "refs/tags/$(RELEASE_TAG)" >/dev/null || { \
 		echo "error: tag $(RELEASE_TAG) does not exist locally; finish a release first" >&2; \
 		exit 1; \
 	}
-	@echo ">> git: pushing current branch and $(RELEASE_TAG)"
-	git push $(PUSH_ARGS)
-	git push origin "$(RELEASE_TAG)"
+	@echo ">> git: pushing $(GITFLOW_MASTER), $(GITFLOW_DEVELOP) and $(RELEASE_TAG)"
+	git push $(PUSH_ARGS) origin $(GITFLOW_MASTER) $(GITFLOW_DEVELOP) "$(RELEASE_TAG)"
 
 # Creates the GitHub release for RELEASE_TAG and attaches every platform binary.
 # Re-runnable: if the release already exists its assets are replaced (--clobber).
