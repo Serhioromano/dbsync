@@ -7,12 +7,13 @@ code disagree, this file follows the **code**, and the disagreement is called ou
 in [Traps: docs vs. reality](#9-traps-docs-vs-reality).
 
 Verification status: the npm tarball contents were confirmed with
-`npm pack --dry-run`; the `ensure-auth` gate's shell logic was exercised with a
-stubbed `npm` (all four branches, including a pty); and the `commit` target's
-logic was exercised with a stubbed `git` (clean, dirty, missing identity, not a
-repo, git absent). The Go build and the `make` targets themselves were **not**
-run — neither `make` nor `go` was available in the authoring environment, and
-**git is not installed there either**.
+`npm pack --dry-run`; the `ensure-auth`/`ensure-gh` and `commit` gates were
+exercised with stubbed `npm`/`gh`/`git` (all branches, including a pty); and the
+Makefile was validated with real GNU make (`make -n release BUMP=patch`,
+`make -n push`, `make -n gh-release`, `make help`). `make` and `git` were
+installed into the authoring container for that; `gh` was not available, so the
+gh commands themselves are untested. The **Go build was never run** — `go` is not
+installed there.
 
 ---
 
@@ -86,11 +87,13 @@ make version                  # print current version
 make commit                   # commit pending work (MSG="..." sets the message)
 make bump BUMP=patch          # patch | minor | major
 make bump BUMP=minor TAG=0    # TAG=0: rewrite package.json only, no git commit/tag
-make release BUMP=patch       # commit -> bump -> publish
+make release BUMP=patch       # commit -> bump -> publish -> push -> gh-release
 make release-minor            # shorthand for `make release BUMP=minor`
 make login                    # npm login (prints a browser link on npm >= 9)
 make pack                     # npm pack (tarball for inspection)
 make publish                  # npm publish the current version
+make push                     # git push + push the version tag
+make gh-release               # create the GitHub release, attach all binaries
 ```
 
 The dirty-tree rule: `npm version` (run by `bump` when `TAG=1`) refuses to run
@@ -109,6 +112,17 @@ terminal, it runs `npm login`, which on npm >= 9 prints a browser login link
 prompts — it prints instructions and exits 1, so CI cannot hang. `make login`
 runs that step alone, and `LOGIN_ARGS` passes extra flags through (for example
 `LOGIN_ARGS=--auth-type=legacy` for username/password/OTP prompts).
+
+GitHub release: `make gh-release` creates (or updates) the release for
+`RELEASE_TAG` — by default `v$(VERSION)`, matching both the tag `npm version`
+creates and the repo's existing v-prefixed tags (`v1.0.0`, `v2.0.0`) — and
+attaches every `bin/mysqlsync-<os>-<arch>` binary. It uses
+`gh release create --verify-tag`, so the tag must already be on the remote:
+`make release` pushes first (`PUSH=0` skips the push). Re-running is safe — if
+the release already exists, assets are replaced via `gh release upload
+--clobber`. `NOTES="..."` sets the body, otherwise gh generates the notes. The
+`ensure-gh` gate mirrors `ensure-auth`: it runs `gh auth login` on a terminal and
+otherwise exits with instructions (use `GH_TOKEN` in CI).
 
 How the tarball stays minimal: `package.json` sets
 `"bin": {"mysqlsync": "bin/mysqlsync"}` and `"files": ["bin/"]`, so only the Node
@@ -153,7 +167,7 @@ Gotchas when editing this area:
 | `test/sqlite_test.sqlite` | Binary SQLite fixture. Not referenced by any code. |
 | `.mysqlsync.json` | Committed example config: `files_path` + `profiles` (`dev`, `prod`). |
 | `bin/mysqlsync` | Tracked Node launcher (the npm `bin` entry) that picks the prebuilt `bin/mysqlsync-<os>-<arch>` binary for the host platform. |
-| `Makefile` | Cross-platform build + npm packaging + version bumping. |
+| `Makefile` | Cross-platform build, npm packaging, version bumping, push and the GitHub release. |
 | `package.json` | The published npm manifest: version source of truth, `bin`/`files`/`os`/`cpu`, and script wrappers. Publishing runs from the repo root. |
 | `.vscode/extensions.json` | Recommends DBML syntax/visualization extensions. |
 | `.pi/SYSTEM.md` | **Stale.** See traps. |
@@ -417,7 +431,7 @@ Consequences for an agent:
   `github.com/spf13/viper`. (`golang.org/x/sys` was an indirect dependency in the
   older `go.mod`; it is no longer listed.)
 - SQLite support must stay cgo-free for the Makefile's static cross-builds.
-- Version lives in the root `package.json` (`1.0.1`) and is bumped with
+- Version lives in the root `package.json` and is bumped with
   `make bump BUMP=patch|minor|major` (or `make release BUMP=…`). npm publishes
   that same manifest, so there is no version injection or placeholder.
   See [Versioning, packaging and release](#versioning-packaging-and-release).

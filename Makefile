@@ -38,7 +38,7 @@
 #      2. commit                   pending work          (COMMIT=0 to skip)
 #      3. bump                     npm version -> commit + vX.Y.Z tag
 #      4. publish                  npm publish (prepack rebuilds bin/)
-#      5. push                     git push --follow-tags (PUSH=0 to skip)
+#      5. push                     git push + push the tag (PUSH=0 to skip)
 #      6. gh-release               gh release create --verify-tag + binaries
 #    The GitHub release attaches every bin/mysqlsync-<os>-<arch>. RELEASE_TAG
 #    defaults to v$(VERSION), matching the tag npm creates and the repo's
@@ -231,8 +231,13 @@ publish: ensure-auth ## Publish to the npm registry (npm runs `prepack` -> make 
 
 push: ## Push the release commit and the version tag to origin
 	@git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: not a git working tree" >&2; exit 1; }
-	@echo ">> git: pushing current branch and tags"
-	git push --follow-tags $(PUSH_ARGS)
+	@git rev-parse -q --verify "refs/tags/$(RELEASE_TAG)" >/dev/null || { \
+		echo "error: tag $(RELEASE_TAG) does not exist locally; run 'make bump BUMP=...' first" >&2; \
+		exit 1; \
+	}
+	@echo ">> git: pushing current branch and $(RELEASE_TAG)"
+	git push $(PUSH_ARGS)
+	git push origin "$(RELEASE_TAG)"
 
 # Creates the GitHub release for RELEASE_TAG and attaches every platform binary.
 # Re-runnable: if the release already exists its assets are replaced (--clobber).
