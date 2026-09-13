@@ -25,25 +25,30 @@
 #    `make publish` first checks npm auth and, when it has a terminal, starts
 #    an interactive login instead of failing (npm >= 9 prints a login link).
 #
-#  Releasing
-#    make release BUMP=patch      # commit work, 1.0.1 -> 1.0.2, then publish
+#  Releasing (git-flow)
+#    make release BUMP=patch      # git-flow release: 1.0.1 -> 1.0.2
 #    make release-patch           # same thing
-#    `npm version` refuses to run on a dirty git tree, so `release` commits
-#    pending changes first (COMMIT=0 disables that, MSG="..." sets the message).
-#    It then rewrites package.json and, unless TAG=0, creates the version commit
-#    and the vX.Y.Z tag, before publishing.
+#    `make release` drives git-flow, which owns the version tag:
+#      1. ensure-auth / ensure-gh / ensure-gitflow   log in, check `git flow`
+#      2. commit           pending work              (COMMIT=0 to skip)
+#      3. release start    git flow release start <next>
+#      4. version          npm version <next> --no-git-tag-version, committed
+#                          on the release branch
+#      5. release finish   merges the release into master, tags it with
+#                          <prefix><next>, back-merges into develop and
+#                          deletes the release branch
+#      6. push             git push origin master develop <tag>
+#      7. publish          npm publish (prepack rebuilds bin/)
+#      8. gh-release       gh release create --verify-tag + all binaries
+#    Net effect: master ends up holding everything from develop, and every
+#    release is tagged, published to npm and attached to a GitHub release.
+#    The tag prefix comes from `git config gitflow.prefix.versiontag` (this repo
+#    sets it to `v`), so RELEASE_TAG always matches what git-flow created.
+#    NOTES="..." sets the GitHub release body; otherwise gh generates it.
 #
-#    Full order for `make release BUMP=patch`:
-#      1. ensure-auth / ensure-gh  log in to npm and gh if needed
-#      2. commit                   pending work          (COMMIT=0 to skip)
-#      3. bump                     npm version -> commit + vX.Y.Z tag
-#      4. publish                  npm publish (prepack rebuilds bin/)
-#      5. push                     git push + push the tag (PUSH=0 to skip)
-#      6. gh-release               gh release create --verify-tag + binaries
-#    The GitHub release attaches every bin/dbsync-<os>-<arch>. RELEASE_TAG
-#    defaults to v$(VERSION), matching the tag npm creates and the repo's
-#    convention (existing tags are v-prefixed, e.g. v1.0.0). NOTES="..." sets
-#    the body; otherwise gh generates the notes.
+#    `make bump` is the low-level alternative (npm version + its own tag) for
+#    work outside git-flow. `make publish`, `make push` and `make gh-release`
+#    stay individually runnable.
 #
 #  Notes
 #    * CGO is disabled, so every binary is fully static and portable.
@@ -64,17 +69,27 @@ VERSION   ?= $(shell node -p "require('./package.json').version" 2>/dev/null || 
 
 # Version bump for `bump` / `release`: patch | minor | major
 BUMP      ?=
-# 1 = `npm version` also creates the git commit + tag, 0 = rewrite package.json only
+# `bump` only: 1 = `npm version` creates its own commit + tag, 0 = package.json
+# only. `make release` ignores this - git-flow owns the tag.
 TAG       ?= 1
-# `release` commits pending work first, because `npm version` (with TAG=1)
-# refuses to run on a dirty git tree. COMMIT=0 skips that commit.
+# `release` commits pending work first: `git flow release start` refuses a dirty
+# working tree ("Working tree contains unstaged changes. Aborting."), as does
+# `npm version` with TAG=1. COMMIT=0 skips that commit.
 COMMIT    ?= 1
 # Message for the pre-release commit made by `make commit` / `make release`.
 MSG       ?= chore: pre-release work
 
-# GitHub release (gh CLI). The repo tags versions with a `v` prefix (v1.0.0),
-# which is also what `npm version` creates, so keep the `v` here.
-RELEASE_TAG ?= v$(VERSION)
+# Next version for `make release`, computed from package.json + BUMP.
+# MUST stay simply expanded (`:=`), so it is computed once, before the release
+# branch rewrites package.json - a lazy `=` would be *re-evaluated* by the later
+# recipe lines and start returning one version too high.
+NEXT_VERSION := $(shell command -v node >/dev/null 2>&1 && node -e "const p=require('./package.json').version.split('.').map(Number);const t='$(BUMP)';console.log(t=='major'?(p[0]+1)+'.0.0':t=='minor'?p[0]+'.'+(p[1]+1)+'.0':t=='patch'?p[0]+'.'+p[1]+'.'+(p[2]+1):'')" 2>/dev/null; true)
+
+# GitHub release (gh CLI). git-flow creates the version tag, so read its
+# configured prefix to guarantee RELEASE_TAG matches the tag that
+# `git flow release finish` actually produced (this repo sets the prefix to `v`).
+GITFLOW_TAG_PREFIX ?= $(shell git config --get gitflow.prefix.versiontag 2>/dev/null)
+RELEASE_TAG ?= $(GITFLOW_TAG_PREFIX)$(VERSION)
 # 1 = push the release commit + tag before creating the GitHub release.
 PUSH      ?= 1
 # Extra arguments for `git push` (e.g. PUSH_ARGS='origin develop').
@@ -106,7 +121,7 @@ PLATFORMS := \
 	linux/arm64 \
 	windows/amd64
 
-.PHONY: help deps version commit bump release login ensure-auth ensure-gh push gh-release build pack publish clean
+.PHONY: help deps version commit bump release login ensure-auth ensure-gh ensure-gitflow push gh-release build pack publish clean
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
@@ -149,11 +164,30 @@ bump: ## Bump the version: BUMP=patch|minor|major (TAG=0 skips git commit/tag)
 	fi
 	@echo ">> $(NAME) version is now $(VERSION)"
 
-release: ensure-auth ensure-gh ## Commit, bump, publish, push and cut the GitHub release
+# NOTE ON STRUCTURE: a recipe line containing `$(MAKE)` is executed even under
+# `make -n` - that is how recursive make works. So the destructive git/npm lines
+# below must never share a line with a `$(MAKE)` call, otherwise `make -n release`
+# would perform a real release. Only the commit/publish/gh-release lines carry
+# `$(MAKE)`, and each does nothing but recurse.
+release: ensure-auth ensure-gh ensure-gitflow ## git-flow release: BUMP=patch|minor|major
+	@case "$(BUMP)" in patch|minor|major) ;; *) \
+		echo "error: BUMP must be patch, minor or major (got '$(BUMP)')" >&2; \
+		echo "usage: make release BUMP=patch|minor|major" >&2; \
+		exit 2 ;; \
+	esac
+	@test -n "$(NEXT_VERSION)" || { echo "error: could not compute the next version from package.json" >&2; exit 1; }
+	@echo ">> git-flow: release $(NEXT_VERSION), tag $(GITFLOW_TAG_PREFIX)$(NEXT_VERSION)"
 	@if [ "$(COMMIT)" = "1" ]; then $(MAKE) commit; fi
-	@$(MAKE) bump BUMP=$(BUMP)
+	@git flow release start "$(NEXT_VERSION)"
+	@npm version "$(NEXT_VERSION)" --no-git-tag-version
+	@git add package.json
+	@git commit -m "release $(NEXT_VERSION)"
+	@GIT_MERGE_AUTOEDIT=no git flow release finish -m "release $(NEXT_VERSION)" "$(NEXT_VERSION)"
+	@if [ "$(PUSH)" = "1" ]; then \
+		echo ">> git: pushing master, develop and $(GITFLOW_TAG_PREFIX)$(NEXT_VERSION)"; \
+		git push origin master develop "$(GITFLOW_TAG_PREFIX)$(NEXT_VERSION)"; \
+	fi
 	@$(MAKE) publish
-	@if [ "$(PUSH)" = "1" ]; then $(MAKE) push; fi
 	@$(MAKE) gh-release
 
 release-%: ## Shorthand: make release-patch | release-minor | release-major
@@ -220,6 +254,17 @@ ensure-gh:
 		exit 1; \
 	fi
 
+# git-flow (AVH edition) drives `make release`. Note the VS Code git-flow
+# extension is a separate thing and does not provide this CLI.
+ensure-gitflow:
+	@git flow version >/dev/null 2>&1 || { \
+		echo "error: the git-flow CLI is required for \`make release\`." >&2; \
+		echo "       Debian/Ubuntu: apt-get install git-flow" >&2; \
+		echo "       macOS:         brew install git-flow-avh" >&2; \
+		echo "       https://github.com/gitflow-avh/gitflow" >&2; \
+		exit 1; \
+	}
+
 # `pack` and `publish` run from the repository root: package.json points "bin"
 # at bin/dbsync and restricts "files" to bin/, and its `prepack` script runs
 # `make build` first, so the shipped binaries are always freshly built.
@@ -232,7 +277,7 @@ publish: ensure-auth ## Publish to the npm registry (npm runs `prepack` -> make 
 push: ## Push the release commit and the version tag to origin
 	@git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "error: not a git working tree" >&2; exit 1; }
 	@git rev-parse -q --verify "refs/tags/$(RELEASE_TAG)" >/dev/null || { \
-		echo "error: tag $(RELEASE_TAG) does not exist locally; run 'make bump BUMP=...' first" >&2; \
+		echo "error: tag $(RELEASE_TAG) does not exist locally; finish a release first" >&2; \
 		exit 1; \
 	}
 	@echo ">> git: pushing current branch and $(RELEASE_TAG)"

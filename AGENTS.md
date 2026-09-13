@@ -7,13 +7,17 @@ code disagree, this file follows the **code**, and the disagreement is called ou
 in [Traps: docs vs. reality](#9-traps-docs-vs-reality).
 
 Verification status: the npm tarball contents were confirmed with
-`npm pack --dry-run`; the `ensure-auth`/`ensure-gh` and `commit` gates were
-exercised with stubbed `npm`/`gh`/`git` (all branches, including a pty); and the
-Makefile was validated with real GNU make (`make -n release BUMP=patch`,
-`make -n push`, `make -n gh-release`, `make help`). `make` and `git` were
-installed into the authoring container for that; `gh` was not available, so the
-gh commands themselves are untested. The **Go build was never run** — `go` is not
-installed there.
+`npm pack --dry-run`; the `ensure-auth`/`ensure-gh`/`ensure-gitflow` and `commit`
+gates were exercised with stubbed `npm`/`gh`/`git` (all branches, including a
+pty); the Makefile was validated with real GNU make (`make -n release BUMP=patch`,
+`make -n push`, `make -n gh-release`, `make help`); and the git-flow sequence was
+rehearsed end to end in a throwaway repo — `git flow release start`, the version
+commit, and `GIT_MERGE_AUTOEDIT=no git flow release finish -m …` with stdin
+closed, confirming master receives the develop work, the tag is created and
+develop is back-merged. `make`, `git` and `git-flow` (AVH 1.12.3) were installed
+into the authoring container for that; `gh` was not available, so the gh commands
+themselves are untested. The **Go build was never run** — `go` is not installed
+there.
 
 ---
 
@@ -95,7 +99,7 @@ make version                  # print current version
 make commit                   # commit pending work (MSG="..." sets the message)
 make bump BUMP=patch          # patch | minor | major
 make bump BUMP=minor TAG=0    # TAG=0: rewrite package.json only, no git commit/tag
-make release BUMP=patch       # commit -> bump -> publish -> push -> gh-release
+make release BUMP=patch       # git-flow release: start -> finish -> push -> publish
 make release-minor            # shorthand for `make release BUMP=minor`
 make login                    # npm login (prints a browser link on npm >= 9)
 make pack                     # npm pack (tarball for inspection)
@@ -104,14 +108,35 @@ make push                     # git push + push the version tag
 make gh-release               # create the GitHub release, attach all binaries
 ```
 
-The dirty-tree rule: `npm version` (run by `bump` when `TAG=1`) refuses to run
-unless the git working tree is clean, because it creates the version commit and
-tag. `make release` therefore commits pending changes first — `git add -A` with
-the `MSG` message (default `chore: pre-release work`) — and skips that step when
-the tree is already clean. `make commit` runs it on its own; `COMMIT=0` leaves
-committing to you; `TAG=0` makes the bump skip git entirely. `make publish` alone
-never touches git, so it works on a dirty tree. If `git user.email` is unset,
-`make commit` fails with instructions rather than a raw Git error.
+`make release BUMP=patch|minor|major` drives **git-flow**, which owns the version
+tag. It computes the next version from `package.json`, commits pending work, runs
+`git flow release start <next>`, sets the version on the release branch with
+`npm version <next> --no-git-tag-version` and commits that, then runs
+`GIT_MERGE_AUTOEDIT=no git flow release finish -m "release <next>" <next>` — which
+merges the release into `master`, tags it, back-merges into `develop` and deletes
+the branch. It then pushes `master`, `develop` and the tag, publishes to npm and
+creates the GitHub release. Net effect: **master ends up holding everything from
+develop, and every release is tagged, published and attached to a GitHub
+release.** The tag prefix is read from `git config gitflow.prefix.versiontag`
+(this repo sets it to `v`), so `RELEASE_TAG` always matches the tag git-flow
+actually created. `PUSH=0` skips the push; `NOTES="..."` sets the release body.
+
+⚠️ Structural rule in the Makefile: **a recipe line containing `$(MAKE)` is
+executed even under `make -n`** — that is how recursive make works. So the
+destructive git/npm lines in `release` must never share a line with a `$(MAKE)`
+call, or `make -n release` would perform a real release. Only the `commit`,
+`publish` and `gh-release` lines carry `$(MAKE)`, and each does nothing but
+recurse. This is not theoretical: an earlier single-line version of the recipe
+really did execute its side effects under `make -n`.
+
+The dirty-tree rule: `git flow release start` refuses to run on a dirty working
+tree ("Working tree contains unstaged changes. Aborting."), and `npm version`
+with `TAG=1` refuses too. `make release` therefore commits pending changes first
+— `git add -A` with the `MSG` message (default `chore: pre-release work`) — and
+skips that step when the tree is already clean. `make commit` runs it on its own;
+`COMMIT=0` leaves committing to you. `make publish` alone never touches git, so
+it works on a dirty tree. If `git user.email` is unset, `make commit` fails with
+instructions rather than a raw Git error.
 
 Authentication: `make publish` and `make release` depend on an `ensure-auth`
 gate. If `npm whoami` succeeds it continues; if not, and stdin/stdout is a
@@ -122,10 +147,9 @@ runs that step alone, and `LOGIN_ARGS` passes extra flags through (for example
 `LOGIN_ARGS=--auth-type=legacy` for username/password/OTP prompts).
 
 GitHub release: `make gh-release` creates (or updates) the release for
-`RELEASE_TAG` — by default `v$(VERSION)`, matching both the tag `npm version`
-creates and the repo's existing v-prefixed tags (`v1.0.0`, `v2.0.0`) — and
-attaches every `bin/dbsync-<os>-<arch>` binary. It uses
-`gh release create --verify-tag`, so the tag must already be on the remote:
+`RELEASE_TAG` — `$(GITFLOW_TAG_PREFIX)$(VERSION)`, i.e. `vX.Y.Z` with this repo's
+git-flow prefix config — and attaches every `bin/dbsync-<os>-<arch>` binary. It
+uses `gh release create --verify-tag`, so the tag must already be on the remote:
 `make release` pushes first (`PUSH=0` skips the push). Re-running is safe — if
 the release already exists, assets are replaced via `gh release upload
 --clobber`. `NOTES="..."` sets the body, otherwise gh generates the notes. The
@@ -470,4 +494,9 @@ Consequences for an agent:
   one.
 - `bin/dbsync` is tracked **source** (the npm `bin` launcher), not a build
   artifact; only `bin/dbsync-*` is ignored.
+- Releases go through git-flow: `git config gitflow.prefix.versiontag` is `v` in
+  this repo, so git-flow tags `vX.Y.Z` (older history is mixed — `1.0.1` has no
+  `v`). `make release` requires the **git-flow CLI** (AVH edition); the VS Code
+  git-flow extension does not provide it. `gh` is also required for the GitHub
+  release step.
 - Do not commit generated snapshots or `dist/` output.
