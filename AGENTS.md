@@ -2,11 +2,17 @@
 
 Orientation for AI agents working in this repository.
 
-This document was written by reading the source tree. It was **not** verified by
-building or running anything (shell execution was unavailable in the environment
-where it was authored). Where documentation and code disagree, this file follows
-the **code**, and the disagreement is called out in
-[Traps: docs vs. reality](#9-traps-docs-vs-reality).
+This document was written by reading the source tree. Where documentation and
+code disagree, this file follows the **code**, and the disagreement is called out
+in [Traps: docs vs. reality](#9-traps-docs-vs-reality).
+
+Verification status: the npm tarball contents were confirmed with
+`npm pack --dry-run`; the `ensure-auth` gate's shell logic was exercised with a
+stubbed `npm` (all four branches, including a pty); and the `commit` target's
+logic was exercised with a stubbed `git` (clean, dirty, missing identity, not a
+repo, git absent). The Go build and the `make` targets themselves were **not**
+run — neither `make` nor `go` was available in the authoring environment, and
+**git is not installed there either**.
 
 ---
 
@@ -39,8 +45,7 @@ drops tables/columns/indexes/constraints when the corresponding flag is enabled.
 
 ## 2. Commands
 
-Derived from `Makefile` and `package.json`. Not executed, so treat exit codes as
-unverified.
+Derived from `Makefile` and `package.json`; see the verification note at the top.
 
 ```bash
 # Build / run
@@ -78,13 +83,32 @@ publishing manifest.
 
 ```bash
 make version                  # print current version
+make commit                   # commit pending work (MSG="..." sets the message)
 make bump BUMP=patch          # patch | minor | major
 make bump BUMP=minor TAG=0    # TAG=0: rewrite package.json only, no git commit/tag
-make release BUMP=patch       # bump -> publish
+make release BUMP=patch       # commit -> bump -> publish
 make release-minor            # shorthand for `make release BUMP=minor`
+make login                    # npm login (prints a browser link on npm >= 9)
 make pack                     # npm pack (tarball for inspection)
 make publish                  # npm publish the current version
 ```
+
+The dirty-tree rule: `npm version` (run by `bump` when `TAG=1`) refuses to run
+unless the git working tree is clean, because it creates the version commit and
+tag. `make release` therefore commits pending changes first — `git add -A` with
+the `MSG` message (default `chore: pre-release work`) — and skips that step when
+the tree is already clean. `make commit` runs it on its own; `COMMIT=0` leaves
+committing to you; `TAG=0` makes the bump skip git entirely. `make publish` alone
+never touches git, so it works on a dirty tree. If `git user.email` is unset,
+`make commit` fails with instructions rather than a raw Git error.
+
+Authentication: `make publish` and `make release` depend on an `ensure-auth`
+gate. If `npm whoami` succeeds it continues; if not, and stdin/stdout is a
+terminal, it runs `npm login`, which on npm >= 9 prints a browser login link
+(`https://www.npmjs.com/login?next=/login/cli/<uuid>`). Without a TTY it never
+prompts — it prints instructions and exits 1, so CI cannot hang. `make login`
+runs that step alone, and `LOGIN_ARGS` passes extra flags through (for example
+`LOGIN_ARGS=--auth-type=legacy` for username/password/OTP prompts).
 
 How the tarball stays minimal: `package.json` sets
 `"bin": {"mysqlsync": "bin/mysqlsync"}` and `"files": ["bin/"]`, so only the Node
@@ -346,12 +370,13 @@ Verified by reading; each is worth confirming with a real database before
    MySQL `ADD COLUMN` has no `AFTER` clause, so new columns land at the end.
 9. **`go.mod` still has `replace github.com/serhioromano/mysqlsync/cmd => ../cmd`**,
    pointing outside the module. Stale; should disappear after `make deps`.
-10. **`go.sum` has no `modernc.org/sqlite` entries** as of this writing (it still
-    carries `mattn/go-sqlite3`). A build will fail until `make deps` / `go mod
-    tidy` is run. `main.go` imports `modernc.org/sqlite`, which registers the
-    driver name `"sqlite"` — matching `sql.Open("sqlite", …)` in the SQLite
-    engine. (The previous cgo driver registered `"sqlite3"` and would not have
-    matched.)
+10. **Resolved — SQLite driver / `go.sum`.** An earlier state had `main.go`
+    importing `modernc.org/sqlite` while `go.sum` still carried the old
+    `mattn/go-sqlite3` and `go.mod` still required it. The current
+    `go.mod`/`go.sum` require `modernc.org/sqlite v1.17.0` with its hashes
+    present, and `mattn` is gone. `modernc.org/sqlite` registers the driver name
+    `"sqlite"`, matching `sql.Open("sqlite", …)` in the SQLite engine (the old
+    cgo driver registered `"sqlite3"` and would not have matched).
 11. **Dead / vestigial code**: `msc.escapeDBMLName` is unused;
     `msc.Struct2json` prints a deprecation warning and returns an empty map;
     `--config` is ignored; `parseRefLine` re-declares an anonymous struct.
@@ -389,8 +414,8 @@ Consequences for an agent:
   (1.16+) and `strings.ReplaceAll` (1.12+); a modern toolchain is fine.
 - Runtime dependencies: `github.com/go-sql-driver/mysql`,
   `modernc.org/sqlite` (pure Go, no cgo), `github.com/spf13/cobra`,
-  `github.com/spf13/viper`.
-- `golang.org/x/sys` is an indirect dependency.
+  `github.com/spf13/viper`. (`golang.org/x/sys` was an indirect dependency in the
+  older `go.mod`; it is no longer listed.)
 - SQLite support must stay cgo-free for the Makefile's static cross-builds.
 - Version lives in the root `package.json` (`1.0.1`) and is bumped with
   `make bump BUMP=patch|minor|major` (or `make release BUMP=…`). npm publishes
