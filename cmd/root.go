@@ -15,10 +15,11 @@ var cnfLoaded bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "mysqlsync",
+	Use:   "dbsync",
 	Short: "Synchronize MySQL DB Model from one DB to another",
-	Long: `Tool to migrate DB from development to productoion without a pain.	
-It works though generating DB model snapshot JSON files.`,
+	Long: `Tool to migrate DB from development to production without a pain.	
+It works though generating DB model snapshot DBML files (Database Markup Language).
+DBML files can be visualized at https://dbdiagram.io/home`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -33,7 +34,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $PWD/.mysqlsync.json)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $PWD/.dbsync.json)")
 	rootCmd.PersistentFlags().StringP("profile", "p", "", "Name of connection profile in configuration file. By adding profile you do not need to add any other flag.")
 	rootCmd.PersistentFlags().String("db", "", "DB scheme name")
 	rootCmd.PersistentFlags().String("user", "", "DB user name")
@@ -42,14 +43,15 @@ func init() {
 	rootCmd.PersistentFlags().String("host", "", "DB host")
 	rootCmd.PersistentFlags().String("port", "", "DB port")
 	rootCmd.PersistentFlags().String("prefix", "", "DB table prefix. Will be deleted on snapshot and added on restore, thus you can have dev tables with one prefix or without and prod tables with other prefix.")
+	rootCmd.PersistentFlags().String("engine", "mysql", "Database engine: mysql or sqlite")
 	rootCmd.PersistentFlags().StringP("file", "f", "", "File to save snapshot or to restore from (default to DB scheme name)")
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	viper.SetConfigName(".mysqlsync.json")
+	viper.SetConfigName(".dbsync.json")
 	viper.SetConfigType("json")
-	viper.AddConfigPath("$HOME/.mysqlsync")
+	viper.AddConfigPath("$HOME/.dbsync")
 	viper.AddConfigPath(".")
 	viper.AutomaticEnv()
 	viper.BindPFlag("profile", rootCmd.Flags().Lookup("profile"))
@@ -75,6 +77,7 @@ func initConfig() {
 			viper.Set("host", viper.Get("profiles."+profile+".host"))
 			viper.Set("prefix", viper.Get("profiles."+profile+".prefix"))
 			viper.Set("file", viper.Get("profiles."+profile+".file_name"))
+			viper.Set("engine", viper.Get("profiles."+profile+".engine"))
 		}
 	}
 
@@ -110,8 +113,12 @@ func initConfig() {
 	if file != "" {
 		viper.Set("file", file)
 	}
+	engine, _ := rootCmd.Flags().GetString("engine")
+	if engine != "" {
+		viper.Set("engine", engine)
+	}
 	f := viper.GetString("file")
 	if f == "" {
-		viper.Set("file", viper.GetString("db")+".json")
+		viper.Set("file", viper.GetString("db")+".dbml")
 	}
 }

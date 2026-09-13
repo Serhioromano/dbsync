@@ -4,8 +4,10 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
 
-	"github.com/serhioromano/mysqlsync/msc"
+	"github.com/serhioromano/dbsync/msc/schema"
+	"github.com/serhioromano/dbsync/msc/dbml"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -13,8 +15,8 @@ import (
 // restoreCmd represents the restore command
 var restoreCmd = &cobra.Command{
 	Use:   "restore",
-	Short: "Restore DB model from shapshot",
-	Long:  `It takes .json file with DB model snapshot created by shash command and run conform DB to that snapshot`,
+	Short: "Restore DB model from snapshot",
+	Long:  `It takes a .dbml file with DB model snapshot created by the snash command and conforms the target DB to that snapshot.`,
 	Run: func(cmd *cobra.Command, args []string) {
 
 		profile := viper.GetString("profile")
@@ -48,7 +50,8 @@ var restoreCmd = &cobra.Command{
 			viper.Set("optimize", o)
 		}
 
-		options := msc.Config{
+		options := schema.Config{
+			Engine:      viper.GetString("engine"),
 			User:        viper.GetString("user"),
 			Pass:        viper.GetString("pass"),
 			Host:        viper.GetString("host"),
@@ -63,13 +66,28 @@ var restoreCmd = &cobra.Command{
 			DConstraint: viper.GetBool("delete_constraint"),
 			Optimize:    viper.GetBool("optimize"),
 		}
-		// fmt.Println(options)
-		runner := msc.Restore{}
-		err := runner.Run(options)
+
+		filePath := options.FilesPath + "/" + options.File
+		dat, err := ioutil.ReadFile(filePath)
 		if err != nil {
 			panic(err.Error())
 		}
-		fmt.Println("Snapshot restored: " + viper.GetString("path") + "/" + viper.GetString("file"))
+
+		schema, err := dbml.Parse(string(dat))
+		if err != nil {
+			panic(err.Error())
+		}
+
+		engine, err := getEngine(options.Engine)
+		if err != nil {
+			panic(err.Error())
+		}
+
+		if err := engine.Restore(options, schema); err != nil {
+			panic(err.Error())
+		}
+
+		fmt.Println("Snapshot restored: " + filePath)
 	},
 }
 

@@ -3,8 +3,9 @@
 package main
 
 import (
-	"github.com/serhioromano/mysqlsync/cmd"
+	"github.com/serhioromano/dbsync/cmd"
 	_ "github.com/go-sql-driver/mysql"
+	_ "modernc.org/sqlite"
 )
 
 func main() {

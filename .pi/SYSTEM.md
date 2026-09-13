@@ -1,8 +1,8 @@
-# mysqlsync — MySQL Schema Sync Tool
+# dbsync — MySQL Schema Sync Tool
 
 ## Overview
 
-**mysqlsync** is a Go CLI tool and library that synchronizes MySQL database schemas. Instead of writing migration files, you capture a **snapshot** (`snash`) of a database schema to a JSON file, then **restore** that schema to another database. On restore, it diffs the target DB against the JSON and automatically generates `ALTER TABLE`, `CREATE TABLE`, `DROP TABLE`, and constraint-management queries to match the snapshot.
+**dbsync** is a Go CLI tool and library that synchronizes MySQL database schemas. Instead of writing migration files, you capture a **snapshot** (`snash`) of a database schema to a JSON file, then **restore** that schema to another database. On restore, it diffs the target DB against the JSON and automatically generates `ALTER TABLE`, `CREATE TABLE`, `DROP TABLE`, and constraint-management queries to match the snapshot.
 
 ## Architecture
 
@@ -18,36 +18,6 @@ msc/                        — Core library (no CLI dependency)
   restore.go                — Restore.Run(): reads JSON, diffs vs target DB, runs DDL
 ```
 
-## Key Concepts
-
-### Snapshot JSON Structure
-```json
-{
-  "name": "<database name>",
-  "prefix": "<table prefix, stripped on snapshot, applied on restore>",
-  "tables": {
-    "<table_name>": {
-      "Name": "...",
-      "Engine": "InnoDB",
-      "Collation": "...",
-      "Comment": "...",
-      "Primary": "<primary key column>",
-      "fields": {
-        "1": { "COLUMN_NAME": "...", "COLUMN_TYPE": "...", "IS_NULLABLE": "NO", ... },
-        ...
-      },
-      "indexes": {
-        "<index_name>": { "Key_name": "...", "Index_type": "...", "fields": [...], ... },
-        ...
-      },
-      "constraines": {  // note: intentional typo in codebase
-        "<constraint_name>": { "CONSTRAINT_NAME": "...", "REFERENCED_TABLE_NAME": "...", ... },
-        ...
-      }
-    }
-  }
-}
-```
 
 ### Prefix System
 - The `prefix` is **stripped** from table names when creating a snapshot.
@@ -80,7 +50,7 @@ The restore sets specific `sql_mode` values at different stages to allow constra
 
 ## Configuration
 
-CLI flags or `.mysqlsync.json` profile file. Profiles are named connection presets:
+CLI flags or `.dbsync.json` profile file. Profiles are named connection presets:
 ```json
 {
   "files_path": "./snash",
@@ -93,8 +63,8 @@ CLI flags or `.mysqlsync.json` profile file. Profiles are named connection prese
 
 ## CLI Usage
 ```
-mysqlsync snash -p=dev       # Create snapshot
-mysqlsync restore -p=prod    # Restore to target DB
+dbsync snash -p=dev       # Create snapshot
+dbsync restore -p=prod    # Restore to target DB
 ```
 
 ## Programmatic Usage
@@ -111,5 +81,5 @@ r.Run(msc.Config{User: "root", ..., DTable: true, DColumn: true, DIndex: true, D
 - `Optimize: true` only runs `OPTIMIZE TABLE` for InnoDB and MyISAM engines
 - Foreign key constraints require `fk_` prefix in their names
 - Views, routines, and triggers are planned but not yet implemented
-- Go module has a `replace` directive: `github.com/serhioromano/mysqlsync/cmd => ../cmd`
+- Go module has a `replace` directive: `github.com/serhioromano/dbsync/cmd => ../cmd`
 - The package.json is only used for npm-based build scripts (Go cross-compilation), not an npm package

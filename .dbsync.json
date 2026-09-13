@@ -2,6 +2,7 @@
     "files_path" : "./snash",
     "profiles": {
         "dev":{
+            "engine": "mysql",
             "dbname": "icod_project",
             "user": "root",
             "pass": "root",
@@ -14,13 +15,14 @@
             "optimize": true
         },
         "prod":{
+            "engine": "mysql",
             "dbname": "p_8",
             "user": "root",
             "pass": "root",
             "host": "localhost",
             "port": "3306",
             "prefix": "p_8_",
-            "file_name": "icod_project.json",
+            "file_name": "icod_project.dbml",
             "delete_table": true,
             "delete_column": true,
             "delete_index": true,
